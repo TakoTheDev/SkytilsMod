@@ -23,6 +23,8 @@ import gg.skytils.skytilsmod.Skytils.Companion.failPrefix
 import gg.skytils.skytilsmod.Skytils.Companion.mc
 import gg.skytils.skytilsmod.Skytils.Companion.prefix
 import gg.skytils.skytilsmod.commands.impl.RepartyCommand
+import gg.skytils.skytilsmod.events.impl.MessageType
+import gg.skytils.skytilsmod.events.impl.PlayerSentMessageEvent
 import gg.skytils.skytilsmod.features.impl.funny.Funny
 import gg.skytils.skytilsmod.features.impl.funny.skytilsplus.AdManager
 import gg.skytils.skytilsmod.mixins.transformers.accessors.AccessorGuiNewChat
@@ -44,11 +46,32 @@ object ChatListener {
     private val members_pattern = Regex(" (?:\\[.+?] )?(\\w+) ●")
     private var awaitingDelimiter = false
 
+    @SubscribeEvent
+    fun onPlayerMessage(event: PlayerSentMessageEvent) {
+        println("\n\n$event\n\n")
+    }
+
     @SubscribeEvent(receiveCanceled = true, priority = EventPriority.HIGHEST)
     fun onChat(event: ClientChatReceivedEvent) {
         if (!Utils.isOnHypixel || event.type == 2.toByte()) return
         val formatted = event.message.formattedText
         val unformatted = formatted.stripControlCodes()
+
+        val self = mc.thePlayer
+
+        if (self != null) {
+            PlayerSentMessageEvent.playerMessageRegex.matchEntire(formatted)?.destructured?.let { (skyblockLevel, emblem, from, rankColor, rankText, player, guildRankColor, guildRankText, message) ->
+                event.isCanceled = PlayerSentMessageEvent(
+                    MessageType.fromText(from) ?: MessageType.All,
+                    player,
+                    message,
+                    rankColor,
+                    skyblockLevel.toIntOrNull(),
+                    rankText.ifBlank { null }
+                ).postAndCatch()
+            }
+        }
+
         if (Skytils.config.autoReparty) {
             if (formatted.endsWith("§r§ehas disbanded the party!§r")) {
                 playerPattern.find(unformatted)?.let {
